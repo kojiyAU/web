@@ -1,7 +1,9 @@
 ﻿
 <!--
 TODO
-サンプリングの際にランダムネスをルーレットで表示。待機時間をどうつくるのかナベさんのソースを見る。
+クリアボタンをつくる。
+自動モードと手動モードのセレクタとなるラジオボタン？
+サンプリングの際にランダムネスをルーレットで表示。
 -->
 
 <!DOCTYPE html>
@@ -20,13 +22,12 @@ TODO
 
       /* for population table */
       .pop-table {
-        width: 100%;
         table-layout: fixed;
         background: #ddd;
       }
 
       .pop-table td {
-        width: auto;
+        width: 60px; /* 5列並べるとgridの幅にぴったり */
         background: #ccc;
       }
 
@@ -42,7 +43,7 @@ TODO
       .main-container {
         display: grid;
         gap: 10px;
-        grid-template-columns: 320px 320px 450px; 
+        grid-template-columns: 322px 322px 450px; 
         grid-template-rows: auto auto;
       }
 
@@ -102,13 +103,13 @@ TODO
         <button id = "autoModeStart">自動モードで開始</button>
         <button id = "autoModeStop" disabled>中止</button>
         <label for = "speedInput">速さ</label>
-        <input type = "range" id = "speedInput" name = "speedInput" min = "1" max = "500">
+        <input type = "range" id = "speedInput" name = "speedInput" min = "0" max = "10">
         <span id = "speedDesc"></span>
       </div>
       <div>
         <label>手動モード用→</label>
         <button id = "preparePop">母集団を準備</button>
-        <button id = "draw" disabled>標本を選ぶ、そしてグラフに点を描く</button>
+        <button id = "drawButton" disabled>標本を選ぶ、そしてグラフに点を描く</button>
         <label for = "ssizeInput">標本サイズ</label>
         <input type = "range" id = "ssizeInput" name = "ssizeInput" min = "1" max = "50">
         <span id = "ssizeDesc"></span>
@@ -140,7 +141,7 @@ TODO
   let autoModeStopButton = document.getElementById( "autoModeStop");
 
   let preparePopButton = document.getElementById( "preparePop");
-  let drawButton = document.getElementById( "draw");
+  let drawButton = document.getElementById( "drawButton");
 
   let speedInput = document.getElementById( "speedInput");
   let speedDesc = document.getElementById( "speedDesc");
@@ -158,24 +159,22 @@ TODO
   let msg = document.getElementById( "msg");
 
 </script>
-<script src = "popdata.js"></script>
+<script src = "datahandle.js"></script>
 <script src = "graph.js"></script>
 <script>
 
   // 初期処理
-  speedInput.value = 1;
-  speedDesc.textContent = ssizeInput.value;
+  speedInput.value = 0;
+  speedDesc.textContent = String( speedInput.value);
   ssizeInput.value = 5;
-  ssizeDesc.textContent = ssizeInput.value;
-  drawButton.disabled = true;
+  ssizeDesc.textContent = String( ssizeInput.value);
   graphObj.clear();
-  graphObj.drawBackground();
-  
+  graphObj.drawBackground();  
 
   ssizeInput.addEventListener(
     "change",
     () => {
-      ssizeDesc.textContent = ssizeInput.value;
+      ssizeDesc.textContent = String( ssizeInput.value);
     }
   );
 
@@ -187,10 +186,19 @@ TODO
     drawButton.disabled = false;
   }
 
-
   preparePopButton.addEventListener(
     "click", preparePop
   );
+
+  // sleep for dur millisec
+  // use like "await sleep( 1000);" in "async" function
+  function sleep( dur) {
+    return new Promise(
+      ( resolve) => {
+        setTimeout( resolve, dur);
+      } 
+    );
+  }
 
   function drawSampleOfSize( ssize0)
   {
@@ -200,7 +208,7 @@ TODO
       return;
     }
 
-    // 標本サイズのスライダーと異なっている場合にスライダーを合わせる。
+    // 標本サイズがスライダーと異なっている場合に、スライダーの方を合わせる。
     ssizeInput.value = ssize0;
     ssizeDesc.textContent = ssizeInput.value;
 
@@ -216,78 +224,76 @@ TODO
   }
 
   drawButton.addEventListener(
-    "click",
-    drawSample
+    "click", drawSample
   );
 
-  let scheduledTime = 0;
-  let interval = 500 / speedInput.value;
-  let timerIds = [];
-  function makeInterval( unit0)
+
+  let interval = 50 * ( 10 - speedInput.value);
+  let stopped = false;
+  async function autoModeStart()
   {
-    scheduledTime += interval * unit0;
-  }
-  function makeSchedule( func0)
-  {
-    let timerid = setTimeout( func0, scheduledTime);
-    timerIds.push( timerid);
-  }
-  function cancelSchedule()
-  {
-    for ( timerid of timerIds){
-      clearTimeout( timerid);
+
+    msg.innerHTML = "自動モードでスタートしました。ストップするには中止ボタンを押してください。";
+
+    stopped = false;
+    
+    // 以前の結果を消去
+    resultVec = [];
+    graphObj.clear();
+
+    preparePop();
+
+    // 手動モードのGUI部品の有効／無効
+    preparePopButton.disabled = true;
+    drawButton.disabled = true;
+    ssizeInput.disabled = true;
+
+    // 自動モードのGUI部品の有効／無効
+    autoModeStopButton.disabled = false;
+
+    let ndraw = 10;
+    let popSize = popPersons.length;
+    for ( let i = 0; i < ndraw; ++i){
+
+      msg.innerHTML = "ただいま" + String( i + 1) + "回目のサンプリング中...";
+
+      for ( let ss0 = 1; ss0 <= popSize; ++ss0){
+        await sleep( interval);
+        if ( stopped == true){
+          break;
+        }
+        drawSampleOfSize( ss0);
+      }
+
+      if ( stopped == true){
+          break;
+      }
+
     }
-    timerIds = [];
-    scheduledTime = 0;
+
+    // 手動モードのGUI部品の有効／無効
+    preparePopButton.disabled = false;
+    drawButton.disabled = false;
+    ssizeInput.disabled = false;
+
+    // 自動モードのGUI部品の有効／無効
+    autoModeStopButton.disabled = true;
+
+    if ( stopped == false){
+      msg.innerHTML = "自動モードが終了しました。";
+    }
+
   }
 
   autoModeStartButton.addEventListener(
-    "click",
-    () => {
-      
-      msg.innerHTML = "自動モードでスタートしました。ストップするには中止ボタンを押してください。";
-      
-      // 以前の結果を消去
-      resultVec = [];
-      graphObj.clear();
-
-      // 手動モードのGUI部品の有効／無効
-      preparePopButton.disabled = true;
-      drawButton.disabled = true;
-      ssizeInput.disabled = true;
-
-      // 自動モードのGUI部品の有効／無効
-      autoModeStopButton.disabled = false;
-      speedInput.disabled = true;
-
-      preparePop();
-      let ndraw = 10;
-      for ( let i = 0; i < ndraw; ++i){
-        for ( let ss0 = 1; ss0 <= 50; ++ss0){
-          makeInterval( 1);
-          makeSchedule( function(){ drawSampleOfSize(ss0); });
-        }
-      }
-
-      // 手動モードのGUI部品の有効／無効
-      makeSchedule( function(){ preparePopButton.disabled = false; });
-      makeSchedule( function(){ drawButton.disabled = false; });    
-      makeSchedule( function(){ ssizeInput.disabled = false; });    
-
-      // 自動モードのGUI部品の有効／無効
-      makeSchedule( function(){ autoModeStopButton.disabled = true; });
-      makeSchedule( function(){ speedInput.disabled = false; });
-
-      makeSchedule( function(){ msg.innerHTML = "自動モードが終了しました。"; });
-
-    }
+    "click", autoModeStart
   );
 
   autoModeStopButton.addEventListener(
     "click",
     () => {
 
-      cancelSchedule();
+      stopped = true;
 
       // 手動モードのGUI部品の有効／無効
       preparePopButton.disabled = false;
@@ -306,11 +312,10 @@ TODO
   speedInput.addEventListener(
     "change",
     () => {
-      speedDesc.textContent = speedInput.value;
-      interval = 500 / speedInput.value;
+      speedDesc.textContent = String( speedInput.value);
+      interval = 50 * ( 10 - speedInput.value);
     }
   );
-
 
 
 </script>
