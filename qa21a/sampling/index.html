@@ -188,6 +188,9 @@ TODO:
 <script src = "graph.js"></script>
 <script>
 
+  let interval = getIntervalToWait();
+  let stopped = false;
+
   // 初期処理
   function init()
   {
@@ -218,6 +221,9 @@ TODO:
     autoModeStartButton.disabled = false;
     autoModeStopButton.disabled = true;
     speedInput.disabled = false;     
+
+    interval = getIntervalToWait();
+    stopped = false;
 
   }
 
@@ -285,8 +291,6 @@ TODO:
     return ( 10 - speedInput.value) / 9 * 500;
   }
 
-  let interval = getIntervalToWait();
-  let stopped = false;
   async function autoModeStart()
   {
 
